@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: spring security 01
+  thymeleaf:
+    cache: true
+  messages:
+    basename: i18n/messages
+    encoding: UTF-8
+    cache-duration: PT1H
+server:
+  port: 443
+  ssl:
+    enabled: true
+    key-alias: prgrms_keystore
+    key-store: classpath:prgrms_keystore.p12
+    key-store-password: prgrms123
+    key-password: prgrms123
+    trust-store: classpath:prgrms_truststore.p12
+    trust-store-password: prgrms123
