@@ -1,5 +1,6 @@
 package com.prgrms.devcourse.configures;
 
+import com.prgrms.devcourse.jwt.Jwt;
 import com.prgrms.devcourse.user.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,13 +41,29 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 
   private final Logger log = LoggerFactory.getLogger(getClass());
 
+  private JWTConfigure jwtConfigure;
+
   private UserService userService;
+
+  @Autowired
+  public void setJwtConfigure(JWTConfigure jwtConfigure) {
+    this.jwtConfigure = jwtConfigure;
+  }
 
   @Autowired
   public void setUserService(UserService userService) {
     this.userService = userService;
   }
 
+
+  @Bean
+  public Jwt jwt() {
+    return new Jwt(
+        jwtConfigure.getIssuer(),
+        jwtConfigure.getClientSecret(),
+        jwtConfigure.getExpirySeconds()
+    );
+  }
 
   @Override
   protected void configure(AuthenticationManagerBuilder auth) throws Exception {
@@ -135,29 +152,39 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
   protected void configure(HttpSecurity http) throws Exception {
     http
       .authorizeRequests()
-      .antMatchers("/me").hasAnyRole("USER", "ADMIN")
-      .antMatchers("/admin").access("hasRole('ADMIN') and isFullyAuthenticated()")
+      .antMatchers("/api/user/me").hasAnyRole("USER", "ADMIN")
+//      .antMatchers("/admin").access("hasRole('ADMIN') and isFullyAuthenticated()")
       .anyRequest().permitAll()
 //      .accessDecisionManager(accessDecisionManager())
       .and()
-      .formLogin()
-      .defaultSuccessUrl("/")
-      .permitAll()
-      .and()
-      .httpBasic()
-      .and()
+        //페이지 기반이 아니기 때문에 지워준다.
+        .csrf().disable()
+        .headers().disable()
+        .formLogin().disable()
+        .httpBasic().disable()
+        .rememberMe().disable()
+        .logout().disable()
+        .sessionManagement()
+        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+        .and()
+//      .formLogin()
+//      .defaultSuccessUrl("/")
+//      .permitAll()
+//      .and()
+//      .httpBasic()
+//      .and()
       //쿠키로 자동로그인
-      .rememberMe()
-      .rememberMeParameter("remember-me")
-      .tokenValiditySeconds(300)
-      .and()
+//      .rememberMe()
+//      .rememberMeParameter("remember-me")
+//      .tokenValiditySeconds(300)
+//      .and()
       //로그아웃 설정
-      .logout()
-      .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
-      .logoutSuccessUrl("/")
-      .invalidateHttpSession(true)
-      .clearAuthentication(true)
-      .and()
+//      .logout()
+//      .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
+//      .logoutSuccessUrl("/")
+//      .invalidateHttpSession(true)
+//      .clearAuthentication(true)
+//      .and()
       //HTTP를 HTTPS요청으로
       .requiresChannel()
       .anyRequest()
