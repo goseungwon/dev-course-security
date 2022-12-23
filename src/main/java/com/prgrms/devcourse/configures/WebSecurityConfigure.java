@@ -1,18 +1,16 @@
 package com.prgrms.devcourse.configures;
 
 import com.prgrms.devcourse.jwt.Jwt;
+import com.prgrms.devcourse.jwt.JwtAuthenticationFilter;
+import com.prgrms.devcourse.jwt.JwtAuthenticationProvider;
+import com.prgrms.devcourse.jwt.JwtSecurityContextRepository;
 import com.prgrms.devcourse.user.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.task.AsyncTaskExecutor;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.springframework.security.access.AccessDecisionManager;
-import org.springframework.security.access.AccessDecisionVoter;
-import org.springframework.security.access.vote.UnanimousBased;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
@@ -21,19 +19,13 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.jdbc.JdbcDaoImpl;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecutor;
 import org.springframework.security.web.access.AccessDeniedHandler;
-import org.springframework.security.web.access.expression.WebExpressionVoter;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.context.SecurityContextPersistenceFilter;
+import org.springframework.security.web.context.SecurityContextRepository;
 
 import javax.servlet.http.HttpServletResponse;
-import javax.sql.DataSource;
-import java.util.ArrayList;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -41,20 +33,27 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 
   private final Logger log = LoggerFactory.getLogger(getClass());
 
-  private JWTConfigure jwtConfigure;
+  private final JwtConfigure jwtConfigure;
 
-  private UserService userService;
-
-  @Autowired
-  public void setJwtConfigure(JWTConfigure jwtConfigure) {
+  public WebSecurityConfigure(JwtConfigure jwtConfigure) {
     this.jwtConfigure = jwtConfigure;
   }
 
-  @Autowired
-  public void setUserService(UserService userService) {
-    this.userService = userService;
+//  @Autowired
+//  public void configureAuthentication(AuthenticationManagerBuilder builder, JwtAuthenticationProvider provider) {
+//    builder.authenticationProvider(provider);
+//  }
+
+  @Bean
+  @Override
+  public AuthenticationManager authenticationManagerBean() throws Exception {
+    return super.authenticationManagerBean();
   }
 
+  @Bean
+  public JwtAuthenticationProvider jwtAuthenticationProvider(Jwt jwt, UserService userService) {
+    return new JwtAuthenticationProvider(userService, jwt);
+  }
 
   @Bean
   public Jwt jwt() {
@@ -65,9 +64,14 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
     );
   }
 
-  @Override
-  protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-    auth.userDetailsService(userService);
+  public SecurityContextRepository securityContextRepository() {
+    Jwt jwt = getApplicationContext().getBean(Jwt.class);
+    return new JwtSecurityContextRepository(jwtConfigure.getHeader(), jwt);
+  }
+//  @Override
+//  protected void configure(AuthenticationManagerBuilder auth){
+//    auth
+//        .userDetailsService(userService);
 
 //    auth.jdbcAuthentication()
 //        .dataSource(dataSource)
@@ -92,7 +96,7 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 //        .getUserDetailsService()
 //        .setEnableAuthorities(false)
 //    ;
-  }
+//  }
 
 //  @Bean
 //  @Qualifier("myAsyncTaskExecutor")
@@ -148,6 +152,11 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 //    return new UnanimousBased(voters);
 //  }
 
+  public JwtAuthenticationFilter jwtAuthenticationFilter() {
+    Jwt jwt = getApplicationContext().getBean(Jwt.class);
+    return new JwtAuthenticationFilter(jwtConfigure.getHeader(), jwt);
+  }
+
   @Override
   protected void configure(HttpSecurity http) throws Exception {
     http
@@ -185,28 +194,37 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 //      .invalidateHttpSession(true)
 //      .clearAuthentication(true)
 //      .and()
-      //HTTP를 HTTPS요청으로
-      .requiresChannel()
-      .anyRequest()
-      .requiresSecure()
-      .and()
 
-      .sessionManagement()
-       .sessionFixation().changeSessionId()
-       .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-       .invalidSessionUrl("/")
-        .maximumSessions(1)
-        .maxSessionsPreventsLogin(false)
-         .and()
-       .and()
+      //HTTP를 HTTPS요청으로
+//      .requiresChannel()
+//      .anyRequest()
+//      .requiresSecure()
+//      .and()
+
+//      .sessionManagement()
+//       .sessionFixation().changeSessionId()
+//       .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+//       .invalidSessionUrl("/")
+//        .maximumSessions(1)
+//        .maxSessionsPreventsLogin(false)
+//         .and()
+//       .and()
+
 //       예외처리 핸들러
       .exceptionHandling()
       .accessDeniedHandler(accessDeniedHandler())
+        .and()
+
+        .securityContext()
+        .securityContextRepository(securityContextRepository())
+        .and()
+
+        .addFilterAfter(jwtAuthenticationFilter(), SecurityContextPersistenceFilter.class);
 
 //                .anonymous()
 //                .principal("thisIsAnonymousUser")
 //                .authorities("ROLE_ANONYMOUS", "ROLE_UNKNOWN")
-    ;
+//    ;
   }
 
   @Bean
