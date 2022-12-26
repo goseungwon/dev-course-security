@@ -2,16 +2,14 @@ package com.prgrms.devcourse.configures;
 
 import com.prgrms.devcourse.jwt.Jwt;
 import com.prgrms.devcourse.jwt.JwtAuthenticationFilter;
-import com.prgrms.devcourse.jwt.JwtAuthenticationProvider;
-import com.prgrms.devcourse.jwt.JwtSecurityContextRepository;
+import com.prgrms.devcourse.oauth2.HttpCookieOAuth2AuthorizationRequestRepository;
+import com.prgrms.devcourse.oauth2.OAuth2AuthenticationSuccessHandler;
 import com.prgrms.devcourse.user.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -19,11 +17,15 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.JdbcOAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.AuthenticatedPrincipalOAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.context.SecurityContextPersistenceFilter;
-import org.springframework.security.web.context.SecurityContextRepository;
 
 import javax.servlet.http.HttpServletResponse;
 
@@ -35,24 +37,16 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
 
   private final JwtConfigure jwtConfigure;
 
-  public WebSecurityConfigure(JwtConfigure jwtConfigure) {
+  private final UserService userService;
+  public WebSecurityConfigure(JwtConfigure jwtConfigure, UserService userService) {
     this.jwtConfigure = jwtConfigure;
-  }
-
-//  @Autowired
-//  public void configureAuthentication(AuthenticationManagerBuilder builder, JwtAuthenticationProvider provider) {
-//    builder.authenticationProvider(provider);
-//  }
-
-  @Bean
-  @Override
-  public AuthenticationManager authenticationManagerBean() throws Exception {
-    return super.authenticationManagerBean();
+    this.userService = userService;
   }
 
   @Bean
-  public JwtAuthenticationProvider jwtAuthenticationProvider(Jwt jwt, UserService userService) {
-    return new JwtAuthenticationProvider(userService, jwt);
+  public OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler() {
+    Jwt jwt = getApplicationContext().getBean(Jwt.class);
+    return new OAuth2AuthenticationSuccessHandler(jwt, userService);
   }
 
   @Bean
@@ -64,93 +58,30 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
     );
   }
 
-  public SecurityContextRepository securityContextRepository() {
-    Jwt jwt = getApplicationContext().getBean(Jwt.class);
-    return new JwtSecurityContextRepository(jwtConfigure.getHeader(), jwt);
+  @Bean
+  public AuthorizationRequestRepository<OAuth2AuthorizationRequest> authorizationRequestRepository() {
+    return new HttpCookieOAuth2AuthorizationRequestRepository();
   }
-//  @Override
-//  protected void configure(AuthenticationManagerBuilder auth){
-//    auth
-//        .userDetailsService(userService);
 
-//    auth.jdbcAuthentication()
-//        .dataSource(dataSource)
-//        .usersByUsernameQuery(
-//                "SELECT " +
-//                        "login_id, passwd, true " +
-//                        "FROM " +
-//                        "USERS " +
-//                        "WHERE " +
-//                        "login_id = ?"
-//        )
-//        .groupAuthoritiesByUsername(
-//                "SELECT " +
-//                        "u.login_id, g.name, p.name " +
-//                        "FROM " +
-//                        "users u JOIN groups g ON u.group_id = g.id " +
-//                        "LEFT JOIN group_permission gp ON g.id = gp.group_id " +
-//                        "JOIN permissions p ON p.id = gp.permission_id " +
-//                        "WHERE " +
-//                        "u.login_id = ? "
-//        )
-//        .getUserDetailsService()
-//        .setEnableAuthorities(false)
-//    ;
-//  }
+  @Bean
+  public OAuth2AuthorizedClientService auth2AuthorizedClientService(
+      JdbcOperations jdbcOperations,
+      ClientRegistrationRepository clientRegistrationRepository
+  ) {
+    return new JdbcOAuth2AuthorizedClientService(jdbcOperations, clientRegistrationRepository);
+  }
 
-//  @Bean
-//  @Qualifier("myAsyncTaskExecutor")
-//  public ThreadPoolTaskExecutor threadPoolTaskExecutor() {
-//    ThreadPoolTaskExecutor threadPoolTaskExecutor = new ThreadPoolTaskExecutor();
-//    threadPoolTaskExecutor.setCorePoolSize(3);
-//    threadPoolTaskExecutor.setMaxPoolSize(5);
-//    threadPoolTaskExecutor.setThreadNamePrefix("my-executor-");
-//    return threadPoolTaskExecutor;
-//  }
-
-//  @Bean
-//  public DelegatingSecurityContextAsyncTaskExecutor taskExecutor(
-//          @Qualifier("myAsyncTaskExecutor") AsyncTaskExecutor delegate
-//  ) {
-//    return new DelegatingSecurityContextAsyncTaskExecutor(delegate);
-//  }
-
-
+  @Bean
+  public OAuth2AuthorizedClientRepository authorizedClientRepository(
+      OAuth2AuthorizedClientService oAuth2AuthorizedClientService) {
+    return new AuthenticatedPrincipalOAuth2AuthorizedClientRepository(oAuth2AuthorizedClientService);
+  }
 
   @Override
   public void configure(WebSecurity web) {
     web.ignoring().antMatchers("/assets/**", "/h2-console/**");
   }
 
-  @Bean
-  public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
-  }
-
-//  @Override
-//  public void configure(AuthenticationManagerBuilder auth) throws Exception {
-//    auth.inMemoryAuthentication()
-//            .withUser("user")
-//            .password("{noop}user123")
-//            .roles("USER")
-//            .and()
-//            .withUser("admin01")
-//            .password("{noop}admin123")
-//            .roles("ADMIN")
-//            .and()
-//            .withUser("admin02")
-//            .password("{noop}admin123")
-//            .roles("ADMIN")
-//    ;
-//  }
-
-//  @Bean
-//  public AccessDecisionManager accessDecisionManager() {
-//    List<AccessDecisionVoter<?>> voters = new ArrayList<>();
-//    voters.add(new WebExpressionVoter());
-//    voters.add(new OddAdminVoter(new AntPathRequestMatcher("/admin")));
-//    return new UnanimousBased(voters);
-//  }
 
   public JwtAuthenticationFilter jwtAuthenticationFilter() {
     Jwt jwt = getApplicationContext().getBean(Jwt.class);
@@ -162,9 +93,7 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
     http
       .authorizeRequests()
       .antMatchers("/api/user/me").hasAnyRole("USER", "ADMIN")
-//      .antMatchers("/admin").access("hasRole('ADMIN') and isFullyAuthenticated()")
       .anyRequest().permitAll()
-//      .accessDecisionManager(accessDecisionManager())
       .and()
         //페이지 기반이 아니기 때문에 지워준다.
         .csrf().disable()
@@ -176,55 +105,20 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
         .sessionManagement()
         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
         .and()
-//      .formLogin()
-//      .defaultSuccessUrl("/")
-//      .permitAll()
-//      .and()
-//      .httpBasic()
-//      .and()
-      //쿠키로 자동로그인
-//      .rememberMe()
-//      .rememberMeParameter("remember-me")
-//      .tokenValiditySeconds(300)
-//      .and()
-      //로그아웃 설정
-//      .logout()
-//      .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
-//      .logoutSuccessUrl("/")
-//      .invalidateHttpSession(true)
-//      .clearAuthentication(true)
-//      .and()
-
-      //HTTP를 HTTPS요청으로
-//      .requiresChannel()
-//      .anyRequest()
-//      .requiresSecure()
-//      .and()
-
-//      .sessionManagement()
-//       .sessionFixation().changeSessionId()
-//       .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-//       .invalidSessionUrl("/")
-//        .maximumSessions(1)
-//        .maxSessionsPreventsLogin(false)
-//         .and()
-//       .and()
-
+        //Oauth2 설정
+        .oauth2Login()
+        .authorizationEndpoint()
+        .authorizationRequestRepository(authorizationRequestRepository())
+        .and()
+        .authorizedClientRepository(getApplicationContext().getBean(AuthenticatedPrincipalOAuth2AuthorizedClientRepository.class))
+        .successHandler(oAuth2AuthenticationSuccessHandler())
+        .and()
 //       예외처리 핸들러
       .exceptionHandling()
       .accessDeniedHandler(accessDeniedHandler())
         .and()
-
-        .securityContext()
-        .securityContextRepository(securityContextRepository())
-        .and()
-
         .addFilterAfter(jwtAuthenticationFilter(), SecurityContextPersistenceFilter.class);
 
-//                .anonymous()
-//                .principal("thisIsAnonymousUser")
-//                .authorities("ROLE_ANONYMOUS", "ROLE_UNKNOWN")
-//    ;
   }
 
   @Bean

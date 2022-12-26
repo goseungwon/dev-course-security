@@ -21,6 +21,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+#        format_sql: true
   datasource:
     driver-class-name: org.h2.Driver
     url: "jdbc:h2:mem:spring_security.db;MODE=MYSQL;DB_CLOSE_DELAY=-1"
@@ -33,9 +34,31 @@ spring:
   sql:
     init:
       platform: h2
-      schema-locations: classpath:sql/schema_new.sql
+      schema-locations: classpath:sql/schema_new.sql, classpath:org/springframework/security/oauth2/client/oauth2-client-schema.sql
       data-locations: classpath:sql/data_new.sql
       encoding: UTF-8
+      mode: always
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            client-name: kakao
+            client-id: f83d1fbc8485e703b36643b7057e14eb
+            client-secret: 8FKEZFlqijpPgAUrWh6gvHi5q6rKOW4g
+            scope: profile_nickname, profile_image
+            redirect-uri: "http://localhost:8080/login/oauth2/code/{registrationId}"
+            authorization-grant-type: authorization_code
+            client-authentication-method: POST
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
+  main:
+    allow-circular-references: true
+
 server:
   port: 8080
 jwt:
