@@ -1,4 +1,4 @@
-package com.prgrms.devcourse.controllers;
+package com.prgrms.devcourse.user;
 
 import com.prgrms.devcourse.jwt.JwtAuthentication;
 import com.prgrms.devcourse.user.UserDto;
